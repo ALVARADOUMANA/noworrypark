@@ -1,0 +1,32 @@
+name = "noworrypark"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# Lunes y miércoles a las 11:56 UTC = 5:56am hora Costa Rica (CR no tiene horario de verano).
+# Corre 1 minuto antes de la hora de entrada deseada para tener margen antes de que se llene.
+[triggers]
+crons = ["56 11 * * 1,3"]
+
+# --- Parámetros NO sensibles (van al repo tal cual) ---
+[vars]
+PARSO_BASE_URL = "https://baclatam.corporateparking.parso.cr"
+PARSO_PLATE = "BMM993"
+PARSO_REASON = "Jornada Laboral"
+PARSO_ENTRY_TIME = "07:30"
+# IDs de parqueo en orden de preferencia (primero Plaza Roble, si falla RCC Roble)
+PARSO_LOT_PRIORITY = "1,80"
+# Cuántos días adelante cae el día que se habilita hoy
+PARSO_DAYS_AHEAD = "7"
+# Rondas de intento y segundos entre cada una. En "1" NO reintenta: prueba cada
+# parqueo de PARSO_LOT_PRIORITY una sola vez y termina ahí. Subilo si más adelante
+# querés que insista varias rondas.
+PARSO_MAX_ATTEMPTS = "1"
+PARSO_RETRY_DELAY_SECONDS = "4"
+
+# --- Secretos (NUNCA van aquí ni al repo) ---
+# Se configuran una sola vez con:
+#   npx wrangler secret put PARSO_EMAIL
+#   npx wrangler secret put PARSO_PASSWORD
+#   npx wrangler secret put TELEGRAM_BOT_TOKEN
+#   npx wrangler secret put TELEGRAM_CHAT_ID
+#   npx wrangler secret put MANUAL_TRIGGER_KEY   (una clave inventada por vos, para pruebas manuales)

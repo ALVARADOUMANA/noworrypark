@@ -1,0 +1,5 @@
+PARSO_EMAIL=tu-correo@bac.net
+PARSO_PASSWORD=tu-contraseña
+TELEGRAM_BOT_TOKEN=123456:ABC-tu-token
+TELEGRAM_CHAT_ID=123456789
+MANUAL_TRIGGER_KEY=inventate-una-clave-larga-aqui
