@@ -8,9 +8,10 @@ compatibility_date = "2026-08-01"
 enabled = true
 
 # Lunes y miércoles a las 11:56 UTC = 5:56am hora Costa Rica (CR no tiene horario de verano).
-# Corre 1 minuto antes de la hora de entrada deseada para tener margen antes de que se llene.
+# OJO: Cloudflare numera los días 1=domingo...7=sábado (distinto al cron estándar donde
+# 0=domingo). Por eso usamos nombres (MON, WED) y no números, para evitar ese lío.
 [triggers]
-crons = ["56 11 * * 1,3"]
+crons = ["56 11 * * MON,WED"]
 
 # --- Parámetros NO sensibles (van al repo tal cual) ---
 [vars]
