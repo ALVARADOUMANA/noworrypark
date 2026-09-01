@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Target date to reserve (YYYY-MM-DD). Leave empty to use the default +7 days calculation."
+        description: "Target date to reserve (YYYY-MM-DD). Leave empty to run right now with the default +7 days calculation."
         required: false
         type: string
 
@@ -12,10 +12,16 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Call the Worker's /trigger endpoint
+      - name: Call the Worker
         run: |
-          URL="${{ secrets.NOWORRYPARK_URL }}/trigger?key=${{ secrets.MANUAL_TRIGGER_KEY }}"
-          if [ -n "${{ inputs.date }}" ]; then
-            URL="${URL}&date=${{ inputs.date }}"
+          BASE="${{ secrets.NOWORRYPARK_URL }}"
+          KEY="${{ secrets.MANUAL_TRIGGER_KEY }}"
+          DATE="${{ inputs.date }}"
+          if [ -n "$DATE" ]; then
+            # Con fecha: la agenda, no reserva ahora. El Worker se dispara solo
+            # 7 días antes, a las 5:56am CR.
+            curl -sS -f "${BASE}/schedule?key=${KEY}&date=${DATE}"
+          else
+            # Sin fecha: corre ya mismo con el cálculo por defecto (hoy + 7 días).
+            curl -sS -f "${BASE}/trigger?key=${KEY}"
           fi
-          curl -sS -f "$URL"

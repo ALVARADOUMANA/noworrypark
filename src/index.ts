@@ -11,6 +11,14 @@ import {
 } from "./parso";
 import { notifyTelegram } from "./telegram";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DAILY_CHECK_CRON = "56 11 * * *";
+const ROUTINE_CRON = "56 11 * * MON,WED";
+
+function pendingKey(dateStr: string): string {
+  return `pending:${dateStr}`;
+}
+
 async function runReservationFlow(env: Env, dateOverride?: string): Promise<void> {
   const dateStr = dateOverride ?? targetDateStr(env);
   const lots = lotPriorityList(env);
@@ -70,24 +78,50 @@ async function runReservationFlow(env: Env, dateOverride?: string): Promise<void
   }
 }
 
+/** Corre en el cron diario: ¿hoy+PARSO_DAYS_AHEAD coincide con alguna fecha agendada
+ * a mano con /schedule? Si sí, la reserva y la borra de la lista. Si no, no hace nada
+ * (silencioso a propósito, para no mandar ruido a Telegram todos los días). */
+async function checkPendingDate(env: Env): Promise<void> {
+  const target = targetDateStr(env);
+  const key = pendingKey(target);
+  const found = await env.PENDING_DATES.get(key);
+  if (!found) return;
+  await env.PENDING_DATES.delete(key); // se consume una sola vez, aunque el cron corra dos veces ese día
+  await runReservationFlow(env, target);
+}
+
+/** Días entre "hoy" (UTC) y una fecha YYYY-MM-DD, usados para validar /schedule. */
+function daysUntil(dateStr: string, now: Date): number {
+  const target = new Date(`${dateStr}T00:00:00.000Z`);
+  const today = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  return Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+}
+
 export default {
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runReservationFlow(env));
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === ROUTINE_CRON) {
+      ctx.waitUntil(runReservationFlow(env));
+    } else if (event.cron === DAILY_CHECK_CRON) {
+      ctx.waitUntil(checkPendingDate(env));
+    }
   },
 
-  // Endpoint manual: GET /trigger?key=TU_MANUAL_TRIGGER_KEY[&date=YYYY-MM-DD]
-  // Sin "date", reserva el día que se habilita hoy (hoy + PARSO_DAYS_AHEAD).
-  // Con "date", reserva exactamente esa fecha, ignorando el cálculo de días.
-  // No lo dejes público sin la key — cualquiera podría dispararte reservas.
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const key = url.searchParams.get("key");
+
+    // GET /trigger?key=...[&date=YYYY-MM-DD] — corre YA MISMO.
+    // Sin "date": reserva hoy + PARSO_DAYS_AHEAD. Con "date": esa fecha exacta, ya.
+    // Solo tiene sentido si esa fecha realmente está dentro de la ventana de reserva
+    // de Parso en este momento — si no, probablemente falle.
     if (url.pathname === "/trigger") {
-      const key = url.searchParams.get("key");
       if (!key || key !== env.MANUAL_TRIGGER_KEY) {
         return new Response("No autorizado", { status: 401 });
       }
       const dateParam = url.searchParams.get("date") ?? undefined;
-      if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      if (dateParam && !DATE_RE.test(dateParam)) {
         return new Response("El parámetro date debe tener formato YYYY-MM-DD", { status: 400 });
       }
       ctx.waitUntil(runReservationFlow(env, dateParam));
@@ -95,8 +129,60 @@ export default {
         `Disparado para ${dateParam ?? "la fecha calculada (hoy + PARSO_DAYS_AHEAD)"}. Revisá Telegram y \`wrangler tail\`.`
       );
     }
+
+    // GET /schedule?key=...&date=YYYY-MM-DD — AGENDA esa fecha. No reserva ahora:
+    // guarda la fecha, y el cron diario la va a disparar solo, automáticamente,
+    // el día exacto en que se abra la ventana (fecha - PARSO_DAYS_AHEAD, a las 5:56am CR).
+    if (url.pathname === "/schedule") {
+      if (!key || key !== env.MANUAL_TRIGGER_KEY) {
+        return new Response("No autorizado", { status: 401 });
+      }
+      const dateParam = url.searchParams.get("date");
+      if (!dateParam || !DATE_RE.test(dateParam)) {
+        return new Response("Falta ?date=YYYY-MM-DD", { status: 400 });
+      }
+
+      const daysAhead = Number(env.PARSO_DAYS_AHEAD);
+      const diff = daysUntil(dateParam, new Date());
+
+      if (diff < daysAhead) {
+        return new Response(
+          `${dateParam} ya está (o pronto va a estar) dentro de la ventana de reserva ` +
+            `de Parso — usá /trigger?key=...&date=${dateParam} para reservarlo directamente ` +
+            `en vez de agendarlo.`,
+          { status: 400 }
+        );
+      }
+
+      // Se guarda por un poco más de lo necesario, por si acaso; se borra solo al usarse.
+      const ttlSeconds = (diff + 2) * 24 * 60 * 60;
+      await env.PENDING_DATES.put(pendingKey(dateParam), new Date().toISOString(), {
+        expirationTtl: ttlSeconds,
+      });
+
+      const openDate = new Date(`${dateParam}T00:00:00.000Z`);
+      openDate.setUTCDate(openDate.getUTCDate() - daysAhead);
+      const openDateStr = openDate.toISOString().slice(0, 10);
+
+      ctx.waitUntil(
+        notifyTelegram(
+          env,
+          `🗓️ <b>Reserva agendada</b>\n` +
+            `Día a reservar: ${dateParam}\n` +
+            `Se va a disparar solo, una vez, el ${openDateStr} a las 5:56am hora Costa Rica.`
+        )
+      );
+
+      return new Response(
+        `Agendado. Va a intentar reservar el ${dateParam} automáticamente el ` +
+          `${openDateStr} a las 5:56am hora Costa Rica.`
+      );
+    }
+
     return new Response(
-      "NoWorryPark activo. Usá /trigger?key=...[&date=YYYY-MM-DD] para probar manualmente."
+      "NoWorryPark activo.\n" +
+        "GET /trigger?key=...[&date=YYYY-MM-DD] — corre ya mismo.\n" +
+        "GET /schedule?key=...&date=YYYY-MM-DD — agenda una fecha futura puntual."
     );
   },
 };

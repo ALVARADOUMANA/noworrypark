@@ -14,6 +14,8 @@ export interface Env {
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
   MANUAL_TRIGGER_KEY: string;
+
+  PENDING_DATES: KVNamespace;
 }
 
 export interface AuthHeaders {

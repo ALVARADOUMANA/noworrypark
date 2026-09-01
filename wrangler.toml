@@ -7,11 +7,20 @@ compatibility_date = "2026-08-01"
 [observability]
 enabled = true
 
-# Lunes y miércoles a las 11:56 UTC = 5:56am hora Costa Rica (CR no tiene horario de verano).
+# Cron 1: lunes y miércoles a las 11:56 UTC = 5:56am CR — reserva automática de rutina.
+# Cron 2: TODOS los días a las 11:56 UTC — solo revisa si hay una fecha puntual agendada
+# (vía /schedule) que caiga justo hoy + PARSO_DAYS_AHEAD; si no hay ninguna, no hace nada.
 # OJO: Cloudflare numera los días 1=domingo...7=sábado (distinto al cron estándar donde
 # 0=domingo). Por eso usamos nombres (MON, WED) y no números, para evitar ese lío.
 [triggers]
-crons = ["56 11 * * MON,WED"]
+crons = ["56 11 * * MON,WED", "56 11 * * *"]
+
+# KV donde se guardan las fechas puntuales agendadas con /schedule (fecha -> pendiente).
+# Creala una vez con: npx wrangler kv namespace create PENDING_DATES
+# y pegá el "id" que te da abajo.
+[[kv_namespaces]]
+binding = "PENDING_DATES"
+id = "ac9647bfd0684af9abc5c919bcf7177c"
 
 # --- Parámetros NO sensibles (van al repo tal cual) ---
 [vars]
