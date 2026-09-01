@@ -11,8 +11,8 @@ import {
 } from "./parso";
 import { notifyTelegram } from "./telegram";
 
-async function runReservationFlow(env: Env): Promise<void> {
-  const dateStr = targetDateStr(env);
+async function runReservationFlow(env: Env, dateOverride?: string): Promise<void> {
+  const dateStr = dateOverride ?? targetDateStr(env);
   const lots = lotPriorityList(env);
   const maxAttempts = Number(env.PARSO_MAX_ATTEMPTS);
   const retryDelayMs = Number(env.PARSO_RETRY_DELAY_SECONDS) * 1000;
@@ -75,7 +75,9 @@ export default {
     ctx.waitUntil(runReservationFlow(env));
   },
 
-  // Endpoint manual para pruebas: GET /trigger?key=TU_MANUAL_TRIGGER_KEY
+  // Endpoint manual: GET /trigger?key=TU_MANUAL_TRIGGER_KEY[&date=YYYY-MM-DD]
+  // Sin "date", reserva el día que se habilita hoy (hoy + PARSO_DAYS_AHEAD).
+  // Con "date", reserva exactamente esa fecha, ignorando el cálculo de días.
   // No lo dejes público sin la key — cualquiera podría dispararte reservas.
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -84,9 +86,17 @@ export default {
       if (!key || key !== env.MANUAL_TRIGGER_KEY) {
         return new Response("No autorizado", { status: 401 });
       }
-      ctx.waitUntil(runReservationFlow(env));
-      return new Response("Disparado. Revisá Telegram y `wrangler tail` para ver el resultado.");
+      const dateParam = url.searchParams.get("date") ?? undefined;
+      if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return new Response("El parámetro date debe tener formato YYYY-MM-DD", { status: 400 });
+      }
+      ctx.waitUntil(runReservationFlow(env, dateParam));
+      return new Response(
+        `Disparado para ${dateParam ?? "la fecha calculada (hoy + PARSO_DAYS_AHEAD)"}. Revisá Telegram y \`wrangler tail\`.`
+      );
     }
-    return new Response("NoWorryPark activo. Usá /trigger?key=... para probar manualmente.");
+    return new Response(
+      "NoWorryPark activo. Usá /trigger?key=...[&date=YYYY-MM-DD] para probar manualmente."
+    );
   },
 };

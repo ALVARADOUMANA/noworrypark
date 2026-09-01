@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date to reserve (YYYY-MM-DD). Leave empty to use the default +7 days calculation."
+        required: false
+        type: string
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the Worker's /trigger endpoint
+        run: |
+          URL="${{ secrets.NOWORRYPARK_URL }}/trigger?key=${{ secrets.MANUAL_TRIGGER_KEY }}"
+          if [ -n "${{ inputs.date }}" ]; then
+            URL="${URL}&date=${{ inputs.date }}"
+          fi
+          curl -sS -f "$URL"

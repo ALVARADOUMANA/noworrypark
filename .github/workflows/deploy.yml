@@ -1,4 +1,4 @@
-name: Deploy NoWorryPark
+name: Deploy
 
 on:
   push:
