@@ -2,6 +2,11 @@ name = "noworrypark"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 
+# Logs gratis del plan Free (200k eventos/día, retención 3 días) — visibles en
+# Workers & Pages → noworrypark → Observability, además de `wrangler tail` en vivo.
+[observability]
+enabled = true
+
 # Lunes y miércoles a las 11:56 UTC = 5:56am hora Costa Rica (CR no tiene horario de verano).
 # Corre 1 minuto antes de la hora de entrada deseada para tener margen antes de que se llene.
 [triggers]
@@ -15,6 +20,8 @@ PARSO_REASON = "Jornada Laboral"
 PARSO_ENTRY_TIME = "07:30"
 # IDs de parqueo en orden de preferencia (primero Plaza Roble, si falla RCC Roble)
 PARSO_LOT_PRIORITY = "1,80"
+# Nombres legibles para esos IDs, usados en las notificaciones (id:nombre, separados por coma)
+PARSO_LOT_NAMES = "1:Plaza Roble,80:RCC Roble"
 # Cuántos días adelante cae el día que se habilita hoy
 PARSO_DAYS_AHEAD = "7"
 # Rondas de intento y segundos entre cada una. En "1" NO reintenta: prueba cada

@@ -4,6 +4,7 @@ import {
   getVehicleId,
   targetDateStr,
   lotPriorityList,
+  lotLabel,
   attemptReservation,
   findReservation,
   sleep,
@@ -26,9 +27,11 @@ async function runReservationFlow(env: Env): Promise<void> {
     outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       for (const lotId of lots) {
         const result = await attemptReservation(env, auth, lotId, vehicleId, dateStr);
-        attemptsLog.push(
-          `intento ${attempt} · lote ${lotId} · http ${result.httpOk ? "ok" : "error"}`
-        );
+        const label = lotLabel(env, lotId);
+        const detail = result.success
+          ? "aceptado por la API, confirmando..."
+          : `rechazado${result.messages.length ? `: ${result.messages.join("; ")}` : " (sin espacio disponible o error)"}`;
+        attemptsLog.push(`ronda ${attempt} · ${label} · ${detail}`);
 
         // Esperamos un poco antes de confirmar: la reserva es async en el backend.
         await sleep(1500);
@@ -51,10 +54,11 @@ async function runReservationFlow(env: Env): Promise<void> {
           `Placa: ${env.PARSO_PLATE}`
       );
     } else {
+      const lotNames = lots.map((id) => lotLabel(env, id)).join(", ");
       await notifyTelegram(
         env,
         `❌ <b>No se logró reservar parqueo</b> para el ${dateStr}.\n` +
-          `Se intentaron ${maxAttempts} rondas en los lotes [${lots.join(", ")}].\n` +
+          `Se intentaron ${maxAttempts} rondas en: ${lotNames}.\n` +
           `Probablemente ya no había cupo. Revisá la app manualmente.\n\n` +
           `Detalle:\n${attemptsLog.join("\n")}`
       );

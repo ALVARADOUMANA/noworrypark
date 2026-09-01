@@ -4,6 +4,7 @@ export interface Env {
   PARSO_REASON: string;
   PARSO_ENTRY_TIME: string; // "HH:MM"
   PARSO_LOT_PRIORITY: string; // "1,80"
+  PARSO_LOT_NAMES: string; // "1:Plaza Roble,80:RCC Roble"
   PARSO_DAYS_AHEAD: string;
   PARSO_MAX_ATTEMPTS: string;
   PARSO_RETRY_DELAY_SECONDS: string;
@@ -79,9 +80,26 @@ export function lotPriorityList(env: Env): number[] {
   return env.PARSO_LOT_PRIORITY.split(",").map((s) => Number(s.trim()));
 }
 
+/** "1:Plaza Roble,80:RCC Roble" -> { 1: "Plaza Roble", 80: "RCC Roble" } */
+export function lotNameMap(env: Env): Record<number, string> {
+  const map: Record<number, string> = {};
+  for (const pair of env.PARSO_LOT_NAMES.split(",")) {
+    const [idStr, ...nameParts] = pair.split(":");
+    const id = Number(idStr.trim());
+    if (!Number.isNaN(id) && nameParts.length) map[id] = nameParts.join(":").trim();
+  }
+  return map;
+}
+
+export function lotLabel(env: Env, lotId: number): string {
+  return lotNameMap(env)[lotId] ?? `lote ${lotId}`;
+}
+
 interface ReservationAttemptResult {
   lotId: number;
   httpOk: boolean;
+  success: boolean;
+  messages: string[];
   raw: unknown;
 }
 
@@ -105,8 +123,16 @@ export async function attemptReservation(
       dates: [dateStr],
     }),
   });
-  const raw = await res.json().catch(() => null);
-  return { lotId, httpOk: res.ok, raw };
+  const raw = (await res.json().catch(() => null)) as
+    | { success?: boolean; messages?: string[] }
+    | null;
+  return {
+    lotId,
+    httpOk: res.ok,
+    success: Boolean(raw?.success),
+    messages: raw?.messages ?? [],
+    raw,
+  };
 }
 
 export interface ConfirmedReservation {
