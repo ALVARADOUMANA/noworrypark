@@ -20,7 +20,7 @@ crons = ["51 11 * * MON,WED", "51 11 * * *"]
 # y pegá el "id" que te da abajo.
 [[kv_namespaces]]
 binding = "PENDING_DATES"
-id = "PEGA_AQUI_EL_ID_QUE_TE_DIO_WRANGLER"
+id = "ac9647bfd0684af9abc5c919bcf7177c"
 
 # --- Parámetros NO sensibles (van al repo tal cual) ---
 [vars]
