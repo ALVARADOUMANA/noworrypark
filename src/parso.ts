@@ -73,7 +73,7 @@ export async function getVehicleId(env: Env, auth: AuthHeaders): Promise<number>
 export function targetDateStr(env: Env, now: Date = new Date()): string {
   const daysAhead = Number(env.PARSO_DAYS_AHEAD);
   const target = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-  // El Worker corre a las 11:56 UTC (5:56am CR), muy lejos de medianoche,
+  // El Worker corre a las 11:51 UTC (5:51am CR), muy lejos de medianoche,
   // así que usar el componente de fecha en UTC es seguro acá.
   return target.toISOString().slice(0, 10);
 }

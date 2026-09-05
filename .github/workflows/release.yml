@@ -19,7 +19,7 @@ jobs:
           DATE="${{ inputs.date }}"
           if [ -n "$DATE" ]; then
             # Con fecha: la agenda, no reserva ahora. El Worker se dispara solo
-            # 7 días antes, a las 5:56am CR.
+            # 7 días antes, a las 5:51am CR.
             curl -sS -f "${BASE}/schedule?key=${KEY}&date=${DATE}"
           else
             # Sin fecha: corre ya mismo con el cálculo por defecto (hoy + 7 días).

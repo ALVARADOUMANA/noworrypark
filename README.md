@@ -1,7 +1,7 @@
 # NoWorryPark
 
 Reserva automáticamente el parqueo en Parso (Plaza Roble, fallback RCC Roble) los
-**lunes y miércoles a las 5:56am hora de Costa Rica**, para el día que cae 7 días
+**lunes y miércoles a las 5:51am hora de Costa Rica**, para el día que cae 7 días
 después. Notifica el resultado por Telegram. Corre en Cloudflare Workers, sin
 depender de ninguna compu prendida.
 

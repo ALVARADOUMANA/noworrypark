@@ -12,8 +12,8 @@ import {
 import { notifyTelegram } from "./telegram";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const DAILY_CHECK_CRON = "56 11 * * *";
-const ROUTINE_CRON = "56 11 * * MON,WED";
+const DAILY_CHECK_CRON = "51 11 * * *";
+const ROUTINE_CRON = "51 11 * * MON,WED";
 
 function pendingKey(dateStr: string): string {
   return `pending:${dateStr}`;
@@ -132,7 +132,7 @@ export default {
 
     // GET /schedule?key=...&date=YYYY-MM-DD — AGENDA esa fecha. No reserva ahora:
     // guarda la fecha, y el cron diario la va a disparar solo, automáticamente,
-    // el día exacto en que se abra la ventana (fecha - PARSO_DAYS_AHEAD, a las 5:56am CR).
+    // el día exacto en que se abra la ventana (fecha - PARSO_DAYS_AHEAD, a las 5:51am CR).
     if (url.pathname === "/schedule") {
       if (!key || key !== env.MANUAL_TRIGGER_KEY) {
         return new Response("No autorizado", { status: 401 });
@@ -169,13 +169,13 @@ export default {
           env,
           `🗓️ <b>Reserva agendada</b>\n` +
             `Día a reservar: ${dateParam}\n` +
-            `Se va a disparar solo, una vez, el ${openDateStr} a las 5:56am hora Costa Rica.`
+            `Se va a disparar solo, una vez, el ${openDateStr} a las 5:51am hora Costa Rica.`
         )
       );
 
       return new Response(
         `Agendado. Va a intentar reservar el ${dateParam} automáticamente el ` +
-          `${openDateStr} a las 5:56am hora Costa Rica.`
+          `${openDateStr} a las 5:51am hora Costa Rica.`
       );
     }
 
