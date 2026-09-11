@@ -34,11 +34,11 @@ PARSO_LOT_PRIORITY = "1,80"
 PARSO_LOT_NAMES = "1:Plaza Roble,80:RCC Roble"
 # Cuántos días adelante cae el día que se habilita hoy
 PARSO_DAYS_AHEAD = "7"
-# Rondas de intento y segundos entre cada una. En "1" NO reintenta: prueba cada
-# parqueo de PARSO_LOT_PRIORITY una sola vez y termina ahí. Subilo si más adelante
-# querés que insista varias rondas.
-PARSO_MAX_ATTEMPTS = "1"
-PARSO_RETRY_DELAY_SECONDS = "4"
+# Después de que un lote es aceptado por la API, cuántas veces (y cada cuántos
+# segundos) se revisa si ya quedó confirmado antes de darlo por "pendiente".
+# 6 x 5s = ~30 segundos de paciencia antes de reportar como pendiente.
+PARSO_CONFIRM_POLL_ATTEMPTS = "6"
+PARSO_CONFIRM_POLL_DELAY_SECONDS = "5"
 
 # --- Secretos (NUNCA van aquí ni al repo) ---
 # Se configuran una sola vez con:

@@ -22,51 +22,82 @@ function pendingKey(dateStr: string): string {
 async function runReservationFlow(env: Env, dateOverride?: string): Promise<void> {
   const dateStr = dateOverride ?? targetDateStr(env);
   const lots = lotPriorityList(env);
-  const maxAttempts = Number(env.PARSO_MAX_ATTEMPTS);
-  const retryDelayMs = Number(env.PARSO_RETRY_DELAY_SECONDS) * 1000;
+  const confirmPollAttempts = Number(env.PARSO_CONFIRM_POLL_ATTEMPTS);
+  const confirmPollDelayMs = Number(env.PARSO_CONFIRM_POLL_DELAY_SECONDS) * 1000;
 
   try {
     const auth = await login(env);
     const vehicleId = await getVehicleId(env, auth);
 
-    let confirmed: Awaited<ReturnType<typeof findReservation>> = null;
     const attemptsLog: string[] = [];
+    let finalStatus: "APPROVED" | "PENDING" | null = null;
+    let finalLabel: string | null = null;
 
-    outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      for (const lotId of lots) {
-        const result = await attemptReservation(env, auth, lotId, vehicleId, dateStr);
-        const label = lotLabel(env, lotId);
-        const detail = result.success
-          ? "aceptado por la API, confirmando..."
-          : `rechazado${result.messages.length ? `: ${result.messages.join("; ")}` : " (sin espacio disponible o error)"}`;
-        attemptsLog.push(`ronda ${attempt} · ${label} · ${detail}`);
+    for (const lotId of lots) {
+      const label = lotLabel(env, lotId);
+      const result = await attemptReservation(env, auth, lotId, vehicleId, dateStr);
 
-        // Esperamos un poco antes de confirmar: la reserva es async en el backend.
-        await sleep(1500);
-        confirmed = await findReservation(env, auth, dateStr);
-
-        if (confirmed && confirmed.status !== "REJECTED") {
-          break outer;
-        }
+      if (!result.success) {
+        attemptsLog.push(
+          `${label} · rechazado de inmediato${result.messages.length ? `: ${result.messages.join("; ")}` : " (sin espacio disponible o error)"}`
+        );
+        continue; // este lote no sirvió, probamos el siguiente
       }
-      if (attempt < maxAttempts) await sleep(retryDelayMs);
+
+      attemptsLog.push(`${label} · aceptado por la API, esperando confirmación...`);
+
+      // Una vez que un lote fue aceptado, NO tocamos otro lote hasta saber con
+      // certeza qué pasó — evita el bug de reservar dos lotes a la vez.
+      let confirmed: Awaited<ReturnType<typeof findReservation>> = null;
+      for (let i = 0; i < confirmPollAttempts; i++) {
+        await sleep(confirmPollDelayMs);
+        confirmed = await findReservation(env, auth, dateStr);
+        if (confirmed && confirmed.status !== "PENDING") break;
+      }
+
+      if (confirmed && confirmed.status === "APPROVED") {
+        attemptsLog.push(`${label} · confirmado como APPROVED`);
+        finalStatus = "APPROVED";
+        finalLabel = label;
+        break; // listo, no se toca el siguiente lote
+      }
+
+      if (confirmed && confirmed.status === "REJECTED") {
+        attemptsLog.push(`${label} · terminó rechazado tras confirmar`);
+        continue; // este sí quedó descartado de verdad, ahora sí probamos el siguiente
+      }
+
+      // Se acabó el tiempo de espera y sigue sin resolver: nos detenemos acá.
+      // No probamos el siguiente lote para no arriesgarnos a reservar doble.
+      attemptsLog.push(`${label} · sigue sin confirmarse después de esperar`);
+      finalStatus = "PENDING";
+      finalLabel = label;
+      break;
     }
 
-    if (confirmed && confirmed.status !== "REJECTED") {
+    if (finalStatus === "APPROVED") {
       await notifyTelegram(
         env,
         `✅ <b>Parqueo reservado</b>\n` +
           `Día: ${dateStr}\n` +
-          `Lote: ${confirmed.parking_lot?.name ?? confirmed.id}\n` +
-          `Estado: ${confirmed.status}\n` +
+          `Lote: ${finalLabel}\n` +
           `Placa: ${env.PARSO_PLATE}`
+      );
+    } else if (finalStatus === "PENDING") {
+      await notifyTelegram(
+        env,
+        `⏳ <b>Quedó pendiente de confirmar</b>\n` +
+          `Día: ${dateStr}\n` +
+          `Lote: ${finalLabel}\n` +
+          `La API lo aceptó pero no se confirmó a tiempo. Revisá la app para ver si se concretó ` +
+          `antes de asumir que falló (no se intentó otro lote para no duplicar).`
       );
     } else {
       const lotNames = lots.map((id) => lotLabel(env, id)).join(", ");
       await notifyTelegram(
         env,
         `❌ <b>No se logró reservar parqueo</b> para el ${dateStr}.\n` +
-          `Se intentaron ${maxAttempts} rondas en: ${lotNames}.\n` +
+          `Se intentó en: ${lotNames}, todos rechazados.\n` +
           `Probablemente ya no había cupo. Revisá la app manualmente.\n\n` +
           `Detalle:\n${attemptsLog.join("\n")}`
       );

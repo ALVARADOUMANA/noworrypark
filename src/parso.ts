@@ -6,8 +6,8 @@ export interface Env {
   PARSO_LOT_PRIORITY: string; // "1,80"
   PARSO_LOT_NAMES: string; // "1:Plaza Roble,80:RCC Roble"
   PARSO_DAYS_AHEAD: string;
-  PARSO_MAX_ATTEMPTS: string;
-  PARSO_RETRY_DELAY_SECONDS: string;
+  PARSO_CONFIRM_POLL_ATTEMPTS: string;
+  PARSO_CONFIRM_POLL_DELAY_SECONDS: string;
 
   PARSO_EMAIL: string;
   PARSO_PASSWORD: string;
